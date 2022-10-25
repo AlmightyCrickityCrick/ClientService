@@ -24,10 +24,6 @@ data class ClientOrder(val restaurant_id: Int, val items:ArrayList<Int>, val pri
 //What to send to client after Receiving order list
 @Serializable
 data class ClientResponseList(val order_id:Int, var orders: ArrayList<ClientOrderResponse>){
-    fun orderBytime(){
-        var new_orders = orders.sortedBy { it.estimated_waiting_time }
-        this.orders = new_orders as ArrayList<ClientOrderResponse>
-    }
     fun getOneOrder(i:Int):ClientOrderResponse?{
         for (ord in orders) if (ord.order_id == i) return ord
         return null

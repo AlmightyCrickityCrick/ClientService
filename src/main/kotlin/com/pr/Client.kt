@@ -28,13 +28,17 @@ class Client(var client_id :Int):Thread() {
         getMenu()
         sleep((10*Constants.TIME_UNIT .. 30*Constants.TIME_UNIT).random().toLong())
         order()
-        orderDetails.orderBytime()
+        orderDetails.orders = orderByTime(orderDetails.orders)
         bar = CyclicBarrier(orderDetails.orders.size +1)
         for (ord in orderDetails.orders) thread{
             awaitOrder(ord)}
         bar.await()
         sendRatings()
         activeClients.release()
+    }
+    fun orderByTime(ord:ArrayList<ClientOrderResponse>):ArrayList<ClientOrderResponse>{
+        var tmp = ord.sortedBy { it.estimated_waiting_time }.toCollection(ArrayList())
+        return tmp
     }
 
 
@@ -50,16 +54,22 @@ class Client(var client_id :Int):Thread() {
 
     fun order(){
         var tmp = ArrayList<ClientOrder>()
-        for (i in 0 until menu.restaurants) {
+        var orderedHere = ArrayList<Int>()
+        var maxOrders = (1..menu.restaurants).random()
+        for (i in 0 until maxOrders) {
+            var currRest:Int
+            do currRest = (1..menu.restaurants).random() while (currRest in orderedHere)
+            orderedHere.add(currRest)
             var food = ArrayList<Int>()
+            var maxFood = intArrayOf(1, 2, 2, 3, 3, 3, 3, 4, 5).random()
             var max_time = 0
-            for(j in 0 .. 2 ){
-                var curr = (1..menu.restaurants_data[i].menuItems).random()
+            for(j in 0 until maxFood ){
+                var curr = (1..menu.restaurants_data[currRest - 1].menuItems).random()
                 food.add(curr)
-                max_time = if(max_time<menu.restaurants_data[i].menu[curr - 1].preparationTime) menu.restaurants_data[i].menu[curr - 1].preparationTime else max_time
+                max_time = if(max_time<menu.restaurants_data[currRest-1].menu[curr - 1].preparationTime) menu.restaurants_data[currRest -1].menu[curr - 1].preparationTime else max_time
             }
             max_time = (max_time *1.8).toInt()
-            tmp.add(ClientOrder(i+1, food, (1..5).random(), max_time, System.currentTimeMillis()))
+            tmp.add(ClientOrder(currRest, food, setFoodPriority(max_time), max_time, System.currentTimeMillis()))
 
         }
         var ord = ClientOrderList(client_id, tmp)
@@ -74,6 +84,14 @@ class Client(var client_id :Int):Thread() {
                 println("Client waiting for food. Got response $orderDetails from food ordering ")
             }
         }
+    }
+
+    fun setFoodPriority(max: Int):Int{
+        if(max< 10) return 1
+        else if (max < 20) return 2
+        else if (max < 27) return 3
+        else if (max < 40) return 4
+        else return 5
     }
 
     fun awaitOrder(ord:ClientOrderResponse){
@@ -108,10 +126,10 @@ class Client(var client_id :Int):Thread() {
         var ratingList = giveRatings()
         runBlocking {
             var job = launch {
-                var resp:HttpResponse = client.post(Constants.FOOD_ORDERING_URL + "/rating"){
+                println("Rating for $client_id are $ratingList")
+                var resp:HttpResponse = client.post(Constants.FOOD_ORDERING_URL+"/rating"){
                     setBody(Json.encodeToString(RatingRequestList.serializer(), ratingList))
                 }
-
                 println(resp.status)
             }
         }
@@ -134,7 +152,6 @@ class Client(var client_id :Int):Thread() {
                 ratingList.orders.add(request)
             }
         }
-        println("Rating for $client_id are $ratingList")
         return ratingList
 
     }
